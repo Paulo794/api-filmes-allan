@@ -12,13 +12,14 @@ router.get('/tom-hanks', authenticateToken, async (req: AuthRequest, res) => {
     // Busca a ID do Tom Hanks
     const searchRes = await fetch(`${TMDB_BASE_URL}/search/person?query=Tom+Hanks&api_key=${TMDB_API_KEY}&language=pt-BR`);
     const searchData = await searchRes.json();
-    const tomHanksId = searchData.results[0]?.id || 31;
+    const tomHanksId = searchData?.results?.[0]?.id || 31;
 
     // Busca os filmes onde ele participou
     const moviesRes = await fetch(`${TMDB_BASE_URL}/person/${tomHanksId}/movie_credits?api_key=${TMDB_API_KEY}&language=pt-BR`);
     const moviesData = await moviesRes.json();
     
-    res.json(moviesData.cast);
+    // Se moviesData.cast for undefined, retorna array vazio para não quebrar
+    res.json(moviesData?.cast || []);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao buscar filmes no TMDB' });
@@ -55,7 +56,7 @@ router.get('/favorites', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const usuario_id = req.user.id;
     const [rows] = await pool.query('SELECT * FROM favoritos WHERE usuario_id = ?', [usuario_id]);
-    res.json(rows);
+    res.json(rows || []);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao buscar favoritos' });
@@ -112,7 +113,7 @@ router.get('/comments/:movieId', authenticateToken, async (req: AuthRequest, res
       'SELECT * FROM comentarios WHERE usuario_id = ? AND tmdb_movie_id = ? ORDER BY criado_em DESC',
       [usuario_id, tmdb_movie_id]
     );
-    res.json(rows);
+    res.json(rows || []);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao buscar comentários' });
