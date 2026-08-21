@@ -4,8 +4,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend ./
-# Build do frontend ignorando eventuais avisos estritos
-RUN npm run build || true
+# Executa o vite build diretamente (sem travar no tsc)
+RUN npx vite build
 
 # Estágio do Backend & Produção
 FROM node:20-alpine
@@ -18,12 +18,13 @@ RUN cd backend && npm install
 # Código do backend
 COPY backend ./backend
 
-# Instala tsx globalmente para rodar TypeScript sem travar em compilação estrita
+# Instala tsx para rodar TypeScript diretamente
 RUN npm install -g tsx
 
-# Copia build estático do frontend para o backend servir
+# Copia build estático do frontend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
 EXPOSE 3001
+
 WORKDIR /app/backend
 CMD ["npx", "tsx", "src/server.ts"]

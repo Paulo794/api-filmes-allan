@@ -13,4 +13,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Intercepta respostas com erro (ex: Token expirado ou inválido)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+      // Remove o token inválido
+      localStorage.removeItem('token');
+      // Redireciona o usuário para o login
+      window.location.href = '/';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
