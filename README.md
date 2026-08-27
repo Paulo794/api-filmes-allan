@@ -2,13 +2,13 @@
 
 Aplicação web completa construída para navegar pelos filmes do Tom Hanks, integrada ao **TMDB API** em tempo real. Cada usuário possui seu próprio espaço isolado no banco de dados para salvar seus filmes favoritos e registrar comentários, sem acesso aos dados de outros usuários.
 
-Desenvolvido para a disciplina de Arquiteturas Cloud p/ Big Data e Projeto Integrador, lecionada pelo professor **@siriani**.
+Desenvolvido para a disciplina de Arquiteturas Cloud , lecionada pelo professor **[@siriani](https://github.com/siriani)**.
 
 ---
 
 ## 🚀 Funcionalidades Principais
 
-- **Autenticação com JWT:** Cadastro e Login seguros com senhas criptografadas (Bcrypt).
+- **Autenticação com JWT (Desacoplada):** Cadastro, Login seguro com senhas criptografadas (Bcrypt) e Recuperação de Senha via E-mail (Mailtrap), rodando em um microsserviço independente.
 - **Catálogo em Tempo Real:** Listagem dinâmica da filmografia do Tom Hanks consumida da API externa do TMDB.
 - **UX Premium (UI 2026):** Design *Glassmorphism* com tema cinematográfico, animações suaves, *Optimistic UI* (atualização instantânea ao favoritar) e *View Transitions API*.
 - **Pesquisa Local:** Barra de pesquisa instantânea para filtrar filmes pelo título.
@@ -16,25 +16,42 @@ Desenvolvido para a disciplina de Arquiteturas Cloud p/ Big Data e Projeto Integ
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## 🏗️ Arquitetura do Sistema (Atividade 3)
 
-O projeto é dividido em um Frontend reativo (React) e um Backend (Node.js/TypeScript) que gerencia as regras de negócio e protege as credenciais.
+O projeto evoluiu para uma arquitetura de Microsserviços. O Catálogo agora atua como porta de entrada pública, enquanto o **Serviço de Autenticação** opera apenas na rede interna do Docker, garantindo máxima segurança.
 
 ```mermaid
 graph TD
-    A[Navegador / Cliente React] -->|Autenticação JWT| B(Servidor Node.js / Express)
-    B -->|Busca de Filmes Segura| C[API TMDB Externa]
+    A[Navegador / Cliente React] -->|Acesso Público (Porta 3001)| B(Catálogo / API Gateway)
+    B -->|Busca de Filmes| C[API TMDB Externa]
     B -->|Consultas Isoladas| D[(Banco MariaDB)]
+    B -.->|Rede Docker Interna| E(Auth Service - Sem porta pública)
+    E -->|Gera Token e Valida| D
+    E -->|Disparo de e-mail| F[Mailtrap SMTP]
 ```
 
 ### 🛠️ Stack Tecnológica
 | Camada | Tecnologia |
 | ------ | ---------- |
 | **Frontend** | React 19 + TypeScript + Vite + Lucide Icons |
-| **Backend**  | Node.js + Express + TypeScript |
+| **Backend (Catálogo)**  | Node.js + Express + TypeScript |
+| **Microservice (Auth)** | Node.js + Express + Nodemailer |
 | **Banco**    | MariaDB / MySQL (Driver `mysql2`) |
 | **Segurança**| JWT (JSON Web Tokens) + Bcrypt |
-| **Deploy**   | Docker (Multi-stage Build) |
+| **Deploy**   | Docker Compose (Multi-container) |
+
+---
+
+## 📸 Demonstração: Fluxo de Recuperação de Senha
+
+
+| Pedido de Recuperação | E-mail Recebido no Mailtrap |
+| :---: | :---: |
+| ![Pedido](doc/pedido-recuperacao.png) | ![Mailtrap](doc/email-mailtrap.png) |
+
+| Redefinição de Senha | Segurança (Token Expirado/Usado) |
+| :---: | :---: |
+| ![Nova Senha](doc/senha-trocada.png) | ![Erro Segurança](doc/token-recusado.png) |
 
 ---
 
@@ -47,7 +64,7 @@ Por conta disso:
 3. O `.env` está protegido no `.gitignore`.
 
 ### ⚙️ Arquivo `.env.example`
-O Portainer (ou o arquivo local) exige as seguintes variáveis:
+O `docker-compose.yml` exige as seguintes variáveis na raiz do projeto:
 ```env
 PORT=3001
 DB_HOST=35.226.64.52
@@ -57,13 +74,19 @@ DB_PASSWORD="sua_senha_com_aspas"
 DB_NAME=seu_banco
 TMDB_API_KEY=sua_chave_tmdb
 JWT_SECRET=super_segredo_jwt
+
+# Mailtrap Config (Para testar o Esqueci a Senha)
+MAILTRAP_HOST=sandbox.smtp.mailtrap.io
+MAILTRAP_PORT=2525
+MAILTRAP_USER=seu_usuario_mailtrap
+MAILTRAP_PASS=sua_senha_mailtrap
 ```
 
 ---
 
 ## 🗄️ Esquema do Banco de Dados
 
-As queries backend filtram rigidamente por `usuario_id = ?`, impedindo vazamento de dados.
+As queries backend filtram rigidamente por `usuario_id = ?`, impedindo vazamento de dados. A tabela `reset_tokens` e a coluna `role` foram adicionadas para gerenciar a recuperação de senha e autorização.
 
 ```sql
 CREATE TABLE usuarios (
@@ -71,7 +94,17 @@ CREATE TABLE usuarios (
   nome VARCHAR(100) NOT NULL,
   email VARCHAR(150) UNIQUE NOT NULL,
   senha_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(20) DEFAULT 'usuario',
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE reset_tokens (
+  token VARCHAR(100) PRIMARY KEY,
+  usuario_id INT NOT NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expira_em TIMESTAMP NOT NULL,
+  usado BOOLEAN DEFAULT FALSE,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 
 CREATE TABLE favoritos (
@@ -96,7 +129,9 @@ CREATE TABLE comentarios (
 ```
 
 ### Testando Localmente
-Se preferir rodar no seu computador:
-1. Acesse `backend/` -> Rode `npm install` e `npm run dev` (Obrigatório configurar o `.env`).
-2. Acesse `frontend/` -> Rode `npm install` e `npm run dev`.
-3. Abra `http://localhost:5173`.
+A forma mais fácil de rodar o projeto agora é subindo a infraestrutura completa do Docker Compose, que orquestra automaticamente a rede interna do Microsserviço e expõe o Catálogo:
+
+```bash
+docker-compose up -d --build
+```
+Após o build, abra `http://localhost:3001` no seu navegador.
