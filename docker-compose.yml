@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: catalogo_tom_hanks
     ports:
-      - "3001:3001" # Ponto de entrada público único
+      - "8224:3001" # Porta 8224 exposta para a rede da faculdade
     networks:
       - tom_hanks_net
     environment:
