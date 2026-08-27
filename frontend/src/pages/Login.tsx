@@ -195,6 +195,17 @@ export default function Login() {
           </button>
         </form>
         
+        {isLogin && (
+          <div style={{ textAlign: 'center', marginTop: '-0.5rem' }}>
+            <span 
+              onClick={() => navigate('/forgot-password')}
+              style={{ color: '#94a3b8', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Esqueci minha senha
+            </span>
+          </div>
+        )}
+        
         <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
           <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
             {isLogin ? "Ainda não tem conta? " : "Já possui conta? "}
