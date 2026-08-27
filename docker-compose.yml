@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  catalogo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: catalogo_tom_hanks
+    ports:
+      - "3001:3001" # Ponto de entrada público único
+    networks:
+      - tom_hanks_net
+    env_file:
+      - .env
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:3000
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth_tom_hanks
+    # SEM PORTS - Acesso apenas interno
+    networks:
+      - tom_hanks_net
+    env_file:
+      - .env
+
+networks:
+  tom_hanks_net:
+    driver: bridge
