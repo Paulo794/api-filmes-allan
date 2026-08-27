@@ -22,10 +22,10 @@ O projeto evoluiu para uma arquitetura de Microsserviços. O Catálogo agora atu
 
 ```mermaid
 graph TD
-    A[Navegador / Cliente React] -->|Acesso Público (Porta 3001)| B(Catálogo / API Gateway)
+    A[Navegador / Cliente React] -->|Acesso via Porta 3001| B[Catálogo / API Gateway]
     B -->|Busca de Filmes| C[API TMDB Externa]
     B -->|Consultas Isoladas| D[(Banco MariaDB)]
-    B -.->|Rede Docker Interna| E(Auth Service - Sem porta pública)
+    B -.->|Rede Docker Interna| E[Auth Service - Interno]
     E -->|Gera Token e Valida| D
     E -->|Disparo de e-mail| F[Mailtrap SMTP]
 ```
