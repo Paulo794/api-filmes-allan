@@ -88,7 +88,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       [token, user.id, expiraEm]
     );
 
-    const resetLink = `http://localhost:5173/reset-password?token=${token}`;
+    const resetLink = `http://localhost:3001/reset-password?token=${token}`;
     await sendResetEmail(email, resetLink);
 
     res.json({ message: 'Se o email existir, um link foi enviado.' });
