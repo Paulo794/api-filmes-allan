@@ -3,7 +3,12 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
-export const verifyToken = (req: Request, res: Response, next: NextFunction): void => {
+// Interface customizada para manter o TypeScript 100% seguro (sem usar 'any')
+export interface AuthRequest extends Request {
+  user?: string | jwt.JwtPayload;
+}
+
+export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -15,8 +20,8 @@ export const verifyToken = (req: Request, res: Response, next: NextFunction): vo
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // Injeta os dados do usuário na requisição para uso posterior
-    (req as any).user = decoded;
+    // Agora o TypeScript sabe que req tem a propriedade user
+    req.user = decoded;
     next();
   } catch (error) {
     res.status(401).json({ error: 'Token inválido ou expirado' });

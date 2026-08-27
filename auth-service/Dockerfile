@@ -6,9 +6,10 @@ RUN npm install
 
 COPY . .
 
-# Usaremos tsx para rodar o TypeScript direto, igual no catálogo
-RUN npm install -g tsx
+# Faz o build do TypeScript transformando em JavaScript
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npx", "tsx", "src/server.ts"]
+# Executa o build compilado em produção (JavaScript puro), mais leve e rápido!
+CMD ["npm", "start"]

@@ -3,7 +3,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import pool from '../db/connection';
+import { RowDataPacket } from 'mysql2';
 import { sendResetEmail } from '../utils/mail';
+import { AuthRequest } from '../middlewares/authMiddleware';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -11,15 +13,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { nome, email, senha } = req.body;
     
-    // Verifica se já existe
-    const [existing]: any = await pool.query('SELECT id FROM usuarios WHERE email = ?', [email]);
+    // Substituindo 'any' por 'RowDataPacket[]' para tipagem correta do MySQL
+    const [existing] = await pool.query<RowDataPacket[]>('SELECT id FROM usuarios WHERE email = ?', [email]);
     if (existing.length > 0) {
       res.status(400).json({ error: 'Email já cadastrado' });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(senha, 10);
-    // Insere com role padrão 'usuario' (será adicionado via migração no BD)
     await pool.query(
       'INSERT INTO usuarios (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)',
       [nome, email, hashedPassword, 'usuario']
@@ -36,7 +37,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, senha } = req.body;
     
-    const [rows]: any = await pool.query('SELECT * FROM usuarios WHERE email = ?', [email]);
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM usuarios WHERE email = ?', [email]);
     const user = rows[0];
 
     if (!user) {
@@ -63,26 +64,23 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const verify = async (req: Request, res: Response): Promise<void> => {
-  // A verificação do token é feita no middleware. Se chegou aqui, é válido.
-  // req.user foi injetado pelo middleware verifyToken
-  res.json({ valid: true, user: (req as any).user });
+export const verify = async (req: AuthRequest, res: Response): Promise<void> => {
+  // Graças a nova interface AuthRequest, não precisamos mais do 'as any'
+  res.json({ valid: true, user: req.user });
 };
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email } = req.body;
-    const [rows]: any = await pool.query('SELECT id FROM usuarios WHERE email = ?', [email]);
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT id FROM usuarios WHERE email = ?', [email]);
     const user = rows[0];
 
     if (!user) {
-      // Retorna sucesso mesmo se não existir para evitar vazamento de dados
       res.json({ message: 'Se o email existir, um link foi enviado.' });
       return;
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    // Expira em 30 minutos
     const expiraEm = new Date(Date.now() + 30 * 60000);
 
     await pool.query(
@@ -90,7 +88,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       [token, user.id, expiraEm]
     );
 
-    // TODO: Ajustar com URL correta do frontend de produção (usando subdomínio se aplicável)
     const resetLink = `http://localhost:5173/reset-password?token=${token}`;
     await sendResetEmail(email, resetLink);
 
@@ -105,7 +102,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   try {
     const { token, novaSenha } = req.body;
 
-    const [rows]: any = await pool.query(
+    const [rows] = await pool.query<RowDataPacket[]>(
       'SELECT * FROM reset_tokens WHERE token = ? AND usado = FALSE AND expira_em > NOW()',
       [token]
     );
@@ -118,10 +115,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     const hashedPassword = await bcrypt.hash(novaSenha, 10);
 
-    // Atualiza a senha
     await pool.query('UPDATE usuarios SET senha_hash = ? WHERE id = ?', [hashedPassword, resetRecord.usuario_id]);
-    
-    // Invalida o token
     await pool.query('UPDATE reset_tokens SET usado = TRUE WHERE token = ?', [token]);
 
     res.json({ message: 'Senha atualizada com sucesso' });
