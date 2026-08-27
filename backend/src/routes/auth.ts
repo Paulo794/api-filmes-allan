@@ -1,67 +1,69 @@
 import { Router } from 'express';
-import bcrypt from 'bcrypt';
-import pool from '../db';
-import * as jwtModule from 'jsonwebtoken';
 
 const router = Router();
-const SECRET = process.env.JWT_SECRET || 'fallback_secret';
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
 
+// Proxy para Registro
 router.post('/register', async (req, res) => {
   try {
-    const { nome, email, senha } = req.body;
-
-    if (!nome || !email || !senha) {
-      return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
-    }
-
-    if (senha.length < 6) {
-      return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
-    }
-
-    const [existing] = await pool.query<any>('SELECT * FROM usuarios WHERE email = ?', [email]);
-    if (existing.length > 0) {
-      return res.status(400).json({ error: 'Email já cadastrado' });
-    }
-
-    const hash = await bcrypt.hash(senha, 10);
-    const [result] = await pool.query<any>(
-      'INSERT INTO usuarios (nome, email, senha_hash) VALUES (?, ?, ?)',
-      [nome, email, hash]
-    );
-
-    res.status(201).json({ message: 'Usuário cadastrado com sucesso!', id: result.insertId });
+    const response = await fetch(`${AUTH_SERVICE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Erro no servidor' });
+    res.status(500).json({ error: 'Erro ao se comunicar com o serviço de autenticação' });
   }
 });
 
+// Proxy para Login
 router.post('/login', async (req, res) => {
   try {
-    const { email, senha } = req.body;
-
-    if (!email || !senha) {
-      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
-    }
-
-    const [rows] = await pool.query<any>('SELECT * FROM usuarios WHERE email = ?', [email]);
-    if (rows.length === 0) {
-      return res.status(400).json({ error: 'Usuário não encontrado' });
-    }
-
-    const user = rows[0];
-    const match = await bcrypt.compare(senha, user.senha_hash);
-
-    if (!match) {
-      return res.status(401).json({ error: 'Senha incorreta' });
-    }
-
-    const token = jwtModule.sign({ id: user.id, nome: user.nome }, SECRET, { expiresIn: '1d' });
-
-    res.json({ message: 'Login realizado com sucesso', token, usuario: { id: user.id, nome: user.nome } });
+    const response = await fetch(`${AUTH_SERVICE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Erro no servidor' });
+    res.status(500).json({ error: 'Erro ao se comunicar com o serviço de autenticação' });
+  }
+});
+
+// Proxy para Esqueci a Senha
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const response = await fetch(`${AUTH_SERVICE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro de comunicação com Auth Service' });
+  }
+});
+
+// Proxy para Reset de Senha
+router.post('/reset-password', async (req, res) => {
+  try {
+    const response = await fetch(`${AUTH_SERVICE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro de comunicação com Auth Service' });
   }
 });
 
