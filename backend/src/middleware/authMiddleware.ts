@@ -3,8 +3,14 @@ import * as jwt from 'jsonwebtoken';
 
 const SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
+export interface JwtUserPayload extends jwt.JwtPayload {
+  id: number;
+  email: string;
+  role: string;
+}
+
 export interface AuthRequest extends Request {
-  user?: string | jwt.JwtPayload;
+  user?: JwtUserPayload;
 }
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -21,7 +27,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
       res.status(403).json({ error: 'Token inválido ou expirado' });
       return;
     }
-    req.user = user;
+    req.user = user as JwtUserPayload;
     next();
   });
 };
