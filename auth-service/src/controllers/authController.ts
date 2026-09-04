@@ -81,11 +81,10 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     }
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expiraEm = new Date(Date.now() + 30 * 60000);
 
     await pool.query(
-      'INSERT INTO reset_tokens (token, usuario_id, expira_em) VALUES (?, ?, ?)',
-      [token, user.id, expiraEm]
+      'INSERT INTO reset_tokens (token, usuario_id, expira_em) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))',
+      [token, user.id]
     );
 
     const resetLink = `http://localhost:3001/reset-password?token=${token}`;
