@@ -128,6 +128,25 @@ CREATE TABLE comentarios (
 );
 ```
 
+---
+
+## 🛡️ Controle de Acesso por Papel (RBAC) - Atividade 4
+
+Para a Atividade 4, a aplicação evoluiu para garantir segurança real no lado do servidor, implementando RBAC.
+
+### Permissões Documentadas (Requisito 1)
+- **`usuario`**: O papel padrão. Pode navegar pelo catálogo, favoritar filmes, adicionar comentários aos filmes e excluir **apenas os próprios comentários**.
+- **`admin`**: O papel de moderação. Pode fazer tudo o que o `usuario` faz, e tem a exclusividade de **apagar qualquer comentário de qualquer usuário**, atuando como moderador da plataforma.
+
+### Padrão Arquitetural: A ou B? (Requisito 5)
+A nossa aplicação utiliza o **Padrão B (claims no token JWT)**.
+
+**Por quê?** 
+Ao invés de fazer o catálogo consultar o `auth-service` a cada ação para saber as permissões do usuário (Padrão A), nós injetamos o `role` do usuário no momento da criação do token JWT.
+O Catálogo consegue interceptar esse token no Middleware (`authMiddleware.ts`), validar a assinatura usando o mesmo `JWT_SECRET` e liberar (ou negar com `403`) a rota localmente, baseando-se no `role` presente nas *claims* do token. Isso economiza chamadas de rede e deixa o sistema mais rápido, com o *trade-off* de que a mudança de papel de um usuário só entra em vigor quando o token expirar e for renovado.
+
+Se mudássemos para o **Padrão A**, o catálogo (backend) precisaria, em cada endpoint restrito, fazer uma chamada HTTP (via `fetch` ou `axios`) para uma rota do `auth-service` perguntando se aquele usuário tem a permissão, o que acoplaria ainda mais os serviços.
+
 ### Testando Localmente
 A forma mais fácil de rodar o projeto agora é subindo a infraestrutura completa do Docker Compose, que orquestra automaticamente a rede interna do Microsserviço e expõe o Catálogo:
 
