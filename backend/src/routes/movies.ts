@@ -29,7 +29,7 @@ router.get('/tom-hanks', authenticateToken, async (req: AuthRequest, res) => {
 // Favoritar um filme
 router.post('/favorites', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const usuario_id = req.user.id;
+    const usuario_id = req.user!.id;
     const { tmdb_movie_id, titulo, poster_path } = req.body;
 
     if (!tmdb_movie_id || !titulo) {
@@ -54,7 +54,7 @@ router.post('/favorites', authenticateToken, async (req: AuthRequest, res) => {
 // Listar favoritos do usuário logado
 router.get('/favorites', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const usuario_id = req.user.id;
+    const usuario_id = req.user!.id;
     const [rows] = await pool.query('SELECT * FROM favoritos WHERE usuario_id = ?', [usuario_id]);
     res.json(rows || []);
   } catch (error) {
@@ -66,7 +66,7 @@ router.get('/favorites', authenticateToken, async (req: AuthRequest, res) => {
 // Remover dos favoritos
 router.delete('/favorites/:movieId', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const usuario_id = req.user.id;
+    const usuario_id = req.user!.id;
     const tmdb_movie_id = req.params.movieId;
 
     await pool.query(
@@ -84,7 +84,7 @@ router.delete('/favorites/:movieId', authenticateToken, async (req: AuthRequest,
 // Adicionar um comentário
 router.post('/comments', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const usuario_id = req.user.id;
+    const usuario_id = req.user!.id;
     const { tmdb_movie_id, texto } = req.body;
 
     if (!tmdb_movie_id || !texto) {
@@ -106,7 +106,7 @@ router.post('/comments', authenticateToken, async (req: AuthRequest, res) => {
 // Listar comentários de um filme (filtrando pelo usuário logado, como pedido)
 router.get('/comments/:movieId', authenticateToken, async (req: AuthRequest, res) => {
   try {
-    const usuario_id = req.user.id;
+    const usuario_id = req.user!.id;
     const tmdb_movie_id = req.params.movieId;
 
     const [rows] = await pool.query(
@@ -117,6 +117,37 @@ router.get('/comments/:movieId', authenticateToken, async (req: AuthRequest, res
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro ao buscar comentários' });
+  }
+});
+
+// Remover um comentário (Ação Exclusiva de Admin / Moderação ou dono)
+router.delete('/comments/:commentId', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ error: 'Não autenticado' });
+    }
+    const usuario_id = user.id;
+    const role = user.role;
+    const commentId = req.params.commentId;
+
+    const [rows] = await pool.query<import('mysql2').RowDataPacket[]>('SELECT * FROM comentarios WHERE id = ?', [commentId]);
+    const comment = rows[0];
+
+    if (!comment) {
+      return res.status(404).json({ error: 'Comentário não encontrado' });
+    }
+
+    // RBAC real no backend (Enforcement)
+    if (role !== 'admin' && comment.usuario_id !== usuario_id) {
+      return res.status(403).json({ error: 'Acesso negado: apenas o dono ou um admin podem apagar este comentário.' });
+    }
+
+    await pool.query('DELETE FROM comentarios WHERE id = ?', [commentId]);
+    res.json({ message: 'Comentário removido com sucesso!' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao remover comentário' });
   }
 });
 
