@@ -11,6 +11,7 @@ app.use(cors());
 app.use(express.json());
 
 // Rotas
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 app.use('/auth', authRoutes);
 
 const PORT = process.env.AUTH_PORT || 3000;
