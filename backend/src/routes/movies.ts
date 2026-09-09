@@ -138,9 +138,13 @@ router.delete('/comments/:commentId', authenticateToken, async (req: AuthRequest
       return res.status(404).json({ error: 'Comentário não encontrado' });
     }
 
-    // RBAC real no backend (Enforcement)
-    if (role !== 'admin' && comment.usuario_id !== usuario_id) {
-      return res.status(403).json({ error: 'Acesso negado: apenas o dono ou um admin podem apagar este comentário.' });
+    const ehDono = comment.usuario_id === usuario_id;
+    const ehAdmin = role === 'admin';
+
+    if (!ehDono && !ehAdmin) {
+      return res.status(403).json({
+        error: 'Acesso negado: apenas o dono ou um admin podem apagar este comentário.'
+      });
     }
 
     await pool.query('DELETE FROM comentarios WHERE id = ?', [commentId]);
