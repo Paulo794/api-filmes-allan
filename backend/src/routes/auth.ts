@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticateToken } from '../middleware/authMiddleware';
 
 const router = Router();
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
@@ -65,6 +66,11 @@ router.post('/reset-password', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Erro de comunicação com Auth Service' });
   }
+});
+
+// Logout (Apenas para auditoria)
+router.post('/logout', authenticateToken, (req, res) => {
+  res.status(200).json({ message: 'Logout registrado com sucesso' });
 });
 
 export default router;

@@ -66,7 +66,12 @@ export default function Catalog() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout', {}, { timeout: 2000 });
+    } catch (e) {
+      console.warn('Erro no logout audit', e);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
     navigate('/');
