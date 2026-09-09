@@ -6,3 +6,8 @@ auth-service/node_modules/
 backend/.env
 frontend/.env
 dist/
+
+# Compiled TS output in src
+backend/src/**/*.js
+backend/src/**/*.d.ts
+backend/src/**/*.map
