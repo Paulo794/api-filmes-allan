@@ -68,8 +68,19 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+import { AuthRequest } from '../middleware/authMiddleware';
+import { audit } from '../audit/auditClient';
+import { AUTH_LOGOUT } from '../audit/actions';
+
 // Logout (Apenas para auditoria)
-router.post('/logout', authenticateToken, (req, res) => {
+router.post('/logout', authenticateToken, (req: AuthRequest, res) => {
+  audit({
+    usuario_id: req.user?.id ?? null,
+    acao: AUTH_LOGOUT,
+    resultado: 'sucesso',
+    ip: req.ip || req.socket?.remoteAddress,
+    recurso: 'POST /api/auth/logout'
+  });
   res.status(200).json({ message: 'Logout registrado com sucesso' });
 });
 

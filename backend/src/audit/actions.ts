@@ -1,0 +1,10 @@
+export const AUTH_LOGIN = 'auth.login';
+export const AUTH_LOGOUT = 'auth.logout';
+export const AUTH_REGISTRO = 'auth.registro';
+export const AUTH_SENHA_REDEFINIDA = 'auth.senha.redefinida';
+export const FAVORITO_CRIADO = 'favorito.criado';
+export const FAVORITO_REMOVIDO = 'favorito.removido';
+export const COMENTARIO_CRIADO = 'comentario.criado';
+export const COMENTARIO_APAGADO = 'comentario.apagado';
+export const ACESSO_NEGADO = 'acesso.negado';
+export const LOG_CONSULTADO = 'log.consultado';
