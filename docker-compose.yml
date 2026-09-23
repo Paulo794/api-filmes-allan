@@ -12,6 +12,8 @@ services:
       - tom_hanks_net
     environment:
       - AUTH_SERVICE_URL=http://auth-service:3000
+      - LOG_SERVICE_URL=http://log-service:3002
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
       - PORT=${PORT}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
@@ -35,6 +37,8 @@ services:
       - tom_hanks_net
     environment:
       - AUTH_PORT=3000
+      - LOG_SERVICE_URL=http://log-service:3002
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
