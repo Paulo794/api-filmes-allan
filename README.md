@@ -67,7 +67,7 @@ Por conta disso:
 O `docker-compose.yml` exige as seguintes variáveis na raiz do projeto:
 ```env
 PORT=3001
-DB_HOST=35.226.64.52
+DB_HOST=ip_do_seu_banco
 DB_PORT=3306
 DB_USER=seu_usuario
 DB_PASSWORD="sua_senha_com_aspas"
@@ -151,6 +151,56 @@ Se mudássemos para o **Padrão A**, o catálogo (backend) precisaria, em cada e
 A forma mais fácil de rodar o projeto agora é subindo a infraestrutura completa do Docker Compose, que orquestra automaticamente a rede interna do Microsserviço e expõe o Catálogo:
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 Após o build, abra `http://localhost:3001` no seu navegador.
+
+---
+
+## 📋 Auditoria e Logs (Atividade 5)
+
+Foi criado um microsserviço independente (`log-service`) dedicado exclusivamente à auditoria e observabilidade das ações da plataforma, utilizando **Redis Streams**.
+
+### 🐳 Topologia Docker
+A orquestração do sistema garante que a rede interna proteja os serviços. Apenas o catálogo expõe porta ao mundo exterior.
+```yaml
+  log-service:
+    build:
+      context: ./log-service
+      dockerfile: Dockerfile
+    container_name: log_tom_hanks
+    networks:
+      - tom_hanks_net
+    environment:
+      - LOG_PORT=3002
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - AUDIT_STREAM_MAXLEN=${AUDIT_STREAM_MAXLEN}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_tom_hanks
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    networks:
+      - tom_hanks_net
+    volumes:
+      - redis_data:/data
+```
+
+### 📸 Evidências
+
+**Print 1: Consulta de logs como Admin**
+![Logs como Admin](doc/print_admin.png)
+
+**Print 2: Consulta barrada (403) para usuário comum, devidamente auditada**
+![Acesso Negado 403](doc/print_403.png)
+
+### 🏗️ Decisões Arquiteturais
+
+- **Justificativa do Redis Streams (ADR-002):** Log de auditoria tem um padrão de uso muito distinto de dado de negócio: escreve muito, lê pouco, e não requer transações complexas. O MariaDB não é a ferramenta certa. Redis Streams resolve o problema perfeitamente oferecendo ordem cronológica absoluta, geração de timestamp nativa (`XADD`) e controle fácil de limite de memória com o parâmetro `MAXLEN`.
+- **Emissão Fire-and-Forget (ADR-004):** A comunicação com o serviço de log é feita de forma assíncrona (sem aguardar o término da requisição com `await`). Motivo: **a auditoria não pode derrubar o negócio**. Se o `log-service` ficar indisponível, falhamos a emissão silenciosamente, garantindo que o usuário consiga continuar usando o catálogo sem perceber a queda do micro-serviço.
+- **Evitando Eventos Duplicados:** O middleware de auditoria de acessos negados (`auditDenials`) existe *apenas* no Catálogo (Gateway). Como todo o tráfego do `auth-service` passa obrigatoriamente por ele, colocar o interceptor nos dois locais geraria logs duplicados na trilha.
+- **Ressalva do IP (RF-10):** Você notará que eventos do `auth-service` (ex: login) registram o IP do container do catálogo (ex: `172...`), enquanto eventos diretos no catálogo registram o IP do host da máquina/usuário. Isso é esperado, visto que o Catálogo atua como *proxy reverso* transparente e, propositalmente, não ativamos repasses de `trust proxy` para fins educacionais nesta etapa.
