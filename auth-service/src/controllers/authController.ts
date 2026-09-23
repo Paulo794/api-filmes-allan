@@ -6,6 +6,8 @@ import pool from '../db/connection';
 import { RowDataPacket } from 'mysql2';
 import { sendResetEmail } from '../utils/mail';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { audit } from '../audit/auditClient';
+import { AUTH_LOGIN, AUTH_REGISTRO, AUTH_SENHA_REDEFINIDA } from '../audit/actions';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -21,10 +23,18 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     const hashedPassword = await bcrypt.hash(senha, 10);
-    await pool.query(
+    const [result] = await pool.query<import('mysql2').ResultSetHeader>(
       'INSERT INTO usuarios (nome, email, senha_hash, role) VALUES (?, ?, ?, ?)',
       [nome, email, hashedPassword, 'usuario']
     );
+
+    audit({
+      usuario_id: result.insertId,
+      acao: AUTH_REGISTRO,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress,
+      recurso: `usuario:${result.insertId}`
+    });
 
     res.status(201).json({ message: 'Usuário cadastrado com sucesso' });
   } catch (error) {
@@ -57,6 +67,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: '24h' }
     );
 
+    audit({
+      usuario_id: user.id,
+      acao: AUTH_LOGIN,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress
+    });
+
     res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, role: user.role } });
   } catch (error) {
     console.error(error);
@@ -87,7 +104,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       [token, user.id]
     );
 
-    const resetLink = `http://localhost:3001/reset-password?token=${token}`;
+    const resetLink = `http://localhost:8224/reset-password?token=${token}`;
     await sendResetEmail(email, resetLink);
 
     res.json({ message: 'Se o email existir, um link foi enviado.' });
@@ -116,6 +133,14 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     await pool.query('UPDATE usuarios SET senha_hash = ? WHERE id = ?', [hashedPassword, resetRecord.usuario_id]);
     await pool.query('UPDATE reset_tokens SET usado = TRUE WHERE token = ?', [token]);
+
+    audit({
+      usuario_id: resetRecord.usuario_id,
+      acao: AUTH_SENHA_REDEFINIDA,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress,
+      recurso: `usuario:${resetRecord.usuario_id}`
+    });
 
     res.json({ message: 'Senha atualizada com sucesso' });
   } catch (error) {
