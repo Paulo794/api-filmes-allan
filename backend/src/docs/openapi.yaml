@@ -1,0 +1,246 @@
+openapi: 3.0.0
+info:
+  title: Catálogo Tom Hanks API
+  version: 1.0.0
+  description: API Gateway do Catálogo de Filmes.
+servers:
+  - url: http://localhost:8224
+    description: Catálogo Público
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ErroPadrao:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Acesso negado"
+    Comentario:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario_id:
+          type: integer
+        tmdb_movie_id:
+          type: integer
+        texto:
+          type: string
+        criado_em:
+          type: string
+          format: date-time
+    Favorito:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario_id:
+          type: integer
+        tmdb_movie_id:
+          type: integer
+        titulo:
+          type: string
+        poster_path:
+          type: string
+        criado_em:
+          type: string
+          format: date-time
+paths:
+  /api/movies/tom-hanks:
+    get:
+      summary: Retorna a filmografia do Tom Hanks via TMDB
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+  /api/movies/favorites:
+    get:
+      summary: Lista filmes favoritos do usuário logado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de favoritos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Favorito'
+    post:
+      summary: Adiciona um filme aos favoritos
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tmdb_movie_id, titulo]
+              properties:
+                tmdb_movie_id:
+                  type: integer
+                titulo:
+                  type: string
+                poster_path:
+                  type: string
+      responses:
+        '201':
+          description: Favoritado com sucesso
+        '400':
+          description: Erro (ex. já favoritado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadrao'
+  /api/movies/favorites/{movieId}:
+    delete:
+      summary: Remove um filme dos favoritos
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: movieId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Removido com sucesso
+  /api/movies/comments:
+    post:
+      summary: Adiciona um comentário a um filme
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tmdb_movie_id, texto]
+              properties:
+                tmdb_movie_id:
+                  type: integer
+                texto:
+                  type: string
+      responses:
+        '201':
+          description: Comentário criado
+  /api/movies/comments/{movieId}:
+    get:
+      summary: Lista comentários do usuário para um filme
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: movieId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de comentários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comentario'
+  /api/movies/comments/{commentId}:
+    delete:
+      summary: Apaga um comentário (apenas dono ou admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Apagado com sucesso
+        '403':
+          description: Não autorizado (não é dono nem admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadrao'
+  /api/admin/logs:
+    get:
+      summary: Lista a trilha de auditoria (Apenas admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Eventos de auditoria
+        '403':
+          description: Requer papel admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErroPadrao'
+  /api/auth/login:
+    post:
+      summary: Proxy para Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                senha:
+                  type: string
+      responses:
+        '200':
+          description: Login efetuado
+  /api/auth/register:
+    post:
+      summary: Proxy para Cadastro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nome:
+                  type: string
+                email:
+                  type: string
+                senha:
+                  type: string
+      responses:
+        '201':
+          description: Criado
+  /api/auth/logout:
+    post:
+      summary: Logout (registra auditoria)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso

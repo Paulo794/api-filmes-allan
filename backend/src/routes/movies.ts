@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { authenticateToken, AuthRequest } from '../middleware/authMiddleware';
 import pool from '../db';
+import { audit } from '../audit/auditClient';
+import { FAVORITO_CRIADO, FAVORITO_REMOVIDO, COMENTARIO_CRIADO, COMENTARIO_APAGADO } from '../audit/actions';
 
 const router = Router();
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
@@ -41,6 +43,14 @@ router.post('/favorites', authenticateToken, async (req: AuthRequest, res) => {
       [usuario_id, tmdb_movie_id, titulo, poster_path]
     );
 
+    audit({
+      usuario_id,
+      acao: FAVORITO_CRIADO,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress,
+      recurso: `filme:${tmdb_movie_id}`
+    });
+
     res.status(201).json({ message: 'Filme favoritado com sucesso!' });
   } catch (error: any) {
     if (error.code === 'ER_DUP_ENTRY') {
@@ -69,10 +79,20 @@ router.delete('/favorites/:movieId', authenticateToken, async (req: AuthRequest,
     const usuario_id = req.user!.id;
     const tmdb_movie_id = req.params.movieId;
 
-    await pool.query(
+    const [result] = await pool.query<import('mysql2').ResultSetHeader>(
       'DELETE FROM favoritos WHERE usuario_id = ? AND tmdb_movie_id = ?',
       [usuario_id, tmdb_movie_id]
     );
+
+    if (result.affectedRows > 0) {
+      audit({
+        usuario_id,
+        acao: FAVORITO_REMOVIDO,
+        resultado: 'sucesso',
+        ip: req.ip || req.socket?.remoteAddress,
+        recurso: `filme:${tmdb_movie_id}`
+      });
+    }
 
     res.json({ message: 'Removido dos favoritos com sucesso!' });
   } catch (error) {
@@ -91,10 +111,18 @@ router.post('/comments', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'ID do filme e texto do comentário são obrigatórios' });
     }
 
-    await pool.query(
+    const [result] = await pool.query<import('mysql2').ResultSetHeader>(
       'INSERT INTO comentarios (usuario_id, tmdb_movie_id, texto) VALUES (?, ?, ?)',
       [usuario_id, tmdb_movie_id, texto]
     );
+
+    audit({
+      usuario_id,
+      acao: COMENTARIO_CRIADO,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress,
+      recurso: `comentario:${result.insertId}`
+    });
 
     res.status(201).json({ message: 'Comentário adicionado com sucesso!' });
   } catch (error) {
@@ -148,6 +176,19 @@ router.delete('/comments/:commentId', authenticateToken, async (req: AuthRequest
     }
 
     await pool.query('DELETE FROM comentarios WHERE id = ?', [commentId]);
+    
+    audit({
+      usuario_id,
+      acao: COMENTARIO_APAGADO,
+      resultado: 'sucesso',
+      ip: req.ip || req.socket?.remoteAddress,
+      recurso: `comentario:${commentId}`,
+      detalhe: {
+        moderacao: !ehDono,
+        dono_original: comment.usuario_id
+      }
+    });
+
     res.json({ message: 'Comentário removido com sucesso!' });
   } catch (error) {
     console.error(error);
