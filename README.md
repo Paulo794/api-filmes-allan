@@ -204,3 +204,30 @@ A orquestração do sistema garante que a rede interna proteja os serviços. Ape
 - **Emissão Fire-and-Forget (ADR-004):** A comunicação com o serviço de log é feita de forma assíncrona (sem aguardar o término da requisição com `await`). Motivo: **a auditoria não pode derrubar o negócio**. Se o `log-service` ficar indisponível, falhamos a emissão silenciosamente, garantindo que o usuário consiga continuar usando o catálogo sem perceber a queda do micro-serviço.
 - **Evitando Eventos Duplicados:** O middleware de auditoria de acessos negados (`auditDenials`) existe *apenas* no Catálogo (Gateway). Como todo o tráfego do `auth-service` passa obrigatoriamente por ele, colocar o interceptor nos dois locais geraria logs duplicados na trilha.
 - **Ressalva do IP (RF-10):** Você notará que eventos do `auth-service` (ex: login) registram o IP do container do catálogo (ex: `172...`), enquanto eventos diretos no catálogo registram o IP do host da máquina/usuário. Isso é esperado, visto que o Catálogo atua como *proxy reverso* transparente e, propositalmente, não ativamos repasses de `trust proxy` para fins educacionais nesta etapa.
+
+---
+
+## 📖 Documentação da API com Swagger/OpenAPI (Atividade Extra)
+
+Para garantir que o contrato da API seja visível e testável sem precisar ler nenhuma linha de código, a documentação interativa foi implementada usando **Swagger UI** e a especificação padrão **OpenAPI**.
+
+Foram documentados 2 microsserviços da arquitetura:
+1. **Catálogo (Backend):** O arquivo de especificação está localizado em `backend/src/docs/openapi.yaml`.
+2. **Auth Service:** O arquivo de especificação está localizado em `auth-service/src/docs/openapi.yaml`.
+
+### 🛠️ Ferramentas Utilizadas
+- `swagger-ui-express`: Usado para ler o arquivo da especificação e renderizar a página interativa do Swagger diretamente na aplicação Express.
+- `yamljs`: Usado para fazer o parser do arquivo YAML nativo para objetos do JavaScript.
+
+### 📸 Evidência: Chamada Real pelo Navegador ("Try it out")
+Abaixo está a demonstração da interface do Swagger UI rodando localmente, mostrando a expansão de um endpoint e a execução real de uma requisição contra a API:
+
+![Demonstração do Swagger UI rodando](doc/swagger.png)
+
+### 🚀 Como Acessar a Documentação
+Com os containers rodando via Docker Compose, você pode acessar a interface interativa da documentação chamando a rota `/apidocs`. 
+
+Considerando a porta mapeada na rede do Catálogo, basta abrir no navegador:
+```bash
+http://localhost:8224/apidocs
+```
