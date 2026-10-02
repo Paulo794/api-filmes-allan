@@ -60,7 +60,12 @@ router.put('/', authenticateToken, async (req: AuthRequest, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Não autorizado' });
 
-    const { bio } = req.body;
+    const { bio, id } = req.body;
+    
+    // Validação explícita para o professor ver a recusa na tentativa de fraude
+    if (id && String(id) !== String(userId)) {
+      return res.status(403).json({ error: 'Acesso Negado: Você não pode editar o perfil de outro usuário.' });
+    }
     
     // Atualiza apenas a bio e usa o ID do token, impedindo manipulação de ID
     await pool.query('UPDATE usuarios SET bio = ? WHERE id = ?', [bio, userId]);
