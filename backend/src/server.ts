@@ -30,6 +30,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', moviesRoutes);
 
+import profileRoutes from './routes/profile';
+app.use('/api/profile', profileRoutes);
+
 import adminLogsRoutes from './routes/adminLogs';
 app.use('/api/admin', adminLogsRoutes);
 
