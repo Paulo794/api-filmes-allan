@@ -126,9 +126,14 @@ export default function Catalog() {
           />
         </div>
 
-        <button onClick={handleLogout} style={{ padding: '8px 16px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 }}>
-          Sair
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => navigate('/profile')} style={{ padding: '8px 16px', background: 'transparent', color: '#38bdf8', border: '1px solid #38bdf8', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 }}>
+            Meu Perfil
+          </button>
+          <button onClick={handleLogout} style={{ padding: '8px 16px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 500 }}>
+            Sair
+          </button>
+        </div>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '2rem' }}>
