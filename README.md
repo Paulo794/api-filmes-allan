@@ -130,7 +130,8 @@ CREATE TABLE comentarios (
 
 ---
 
-## 🛡️ Controle de Acesso por Papel (RBAC) - Atividade 4
+## 🛡️ 
+Controle de Acesso por Papel (RBAC) - Atividade 4
 
 Para a Atividade 4, a aplicação evoluiu para garantir segurança real no lado do servidor, implementando RBAC.
 
@@ -231,3 +232,51 @@ Considerando a porta mapeada na rede do Catálogo, basta abrir no navegador:
 ```bash
 http://localhost:8224/apidocs
 ```
+
+---
+
+## 🖼️ Upload e Perfil de Usuário (Atividade 6)
+
+A aplicação agora se assemelha a uma rede social, permitindo o upload de fotos de perfil (arquivos binários) e a gestão de biografias, com rígido controle de autorização.
+
+### 📸 Evidências da Atividade
+
+Aqui estão os prints solicitados demonstrando o funcionamento:
+
+**1. Perfil com Foto Salva no MinIO e Biografia:**
+![Perfil com Foto e Bio](doc/print_perfil.png)
+
+**2. Sistema de Segurança (Erro 403) bloqueando edição de outros usuários:**
+![Acesso Negado 403](doc/print_403_perfil.png)
+
+### 🐳 MinIO no Docker Compose
+Para não inflar o MariaDB com arquivos binários (BLOB), adicionamos um *Object Storage* compatível com S3 (MinIO) diretamente na nossa arquitetura via Docker Compose:
+
+```yaml
+  minio:
+    image: elestio/minio:latest
+    container_name: minio_tom_hanks
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=adminpassword
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - tom_hanks_net
+    volumes:
+      - minio_data:/data
+```
+
+### 🧠 Decisão de Arquitetura: Storage Público ou Pré-assinado?
+
+**Decisão:** Optamos por usar um **Bucket com Leitura Pública** (*Public Read*) e gerenciamento de criação via SDK do MinIO Node.js (sem container `minio-mc`).
+
+**Explicação do Trade-off:**
+Fotos de perfil, no contexto de uma "rede social" focada em catálogo, são informações publicamente consumidas dezenas de vezes a cada carregamento de página e scrollagem (ex: comentários no perfil de um usuário). 
+* **Se usássemos URLs Pré-assinadas:** O backend teria que gastar recursos e tempo de processamento gerando tokens para *todas as imagens* a cada vez que a página fosse montada, além de inutilizar completamente a capacidade de *cache* de imagens do navegador, o que traria lentidão na renderização.
+* **Com o Bucket Público:** Ganhamos máxima velocidade e otimização de cache do navegador. O *trade-off* é a impossibilidade de revogar o acesso àquele arquivo de quem já possui sua URL direta, o que é perfeitamente aceitável para fotos públicas de perfil.
+
+### 🔒 Segurança de Edição
+A API do Catálogo garante matematicamente a segurança na alteração de perfil e bio: a rota `PUT /api/profile` sequer possui um campo `id` no payload. O identificador do usuário é estritamente retirado da assinatura do token JWT (`req.user.id`). Dessa forma, não é necessário fazer verificações extras no corpo da requisição, impossibilitando qualquer ataque de alteração forjada.
