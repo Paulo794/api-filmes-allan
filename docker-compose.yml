@@ -22,6 +22,8 @@ services:
       - DB_NAME=${DB_NAME}
       - TMDB_API_KEY=${TMDB_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
     depends_on:
       auth-service:
         condition: service_healthy
@@ -96,7 +98,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: elestio/minio:latest
     container_name: minio_tom_hanks
     command: server /data --console-address ":9001"
     environment:
@@ -112,7 +114,7 @@ services:
     restart: unless-stopped
 
   minio-mc:
-    image: minio/mc:latest
+    image: alpine:latest
     container_name: minio_mc_tom_hanks
     depends_on:
       - minio
@@ -120,11 +122,14 @@ services:
       - tom_hanks_net
     entrypoint: >
       /bin/sh -c "
+      apk add --no-cache curl;
+      curl -s -O https://dl.min.io/client/mc/release/linux-amd64/mc;
+      chmod +x mc;
       echo 'Aguardando MinIO iniciar...';
       sleep 5;
-      /usr/bin/mc alias set myminio http://minio:9000 admin adminpassword;
-      /usr/bin/mc mb myminio/user-profiles || true;
-      /usr/bin/mc anonymous set download myminio/user-profiles;
+      ./mc alias set myminio http://minio:9000 admin adminpassword;
+      ./mc mb myminio/user-profiles || true;
+      ./mc anonymous set download myminio/user-profiles;
       echo 'Bucket configurado!';
       exit 0;
       "

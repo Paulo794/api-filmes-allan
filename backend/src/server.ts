@@ -44,6 +44,9 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
 });
 
-app.listen(port, () => {
+import { setupMinio } from './config/minio';
+
+app.listen(port, async () => {
   console.log(`Servidor rodando na porta ${port}`);
+  await setupMinio();
 });
