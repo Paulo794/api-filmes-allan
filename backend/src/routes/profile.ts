@@ -101,8 +101,8 @@ router.post('/avatar', authenticateToken, upload.single('file'), async (req: Aut
       { 'Content-Type': file.mimetype }
     );
 
-    // O MinIO está configurado em localhost:9000 para acesso público
-    const avatarUrl = `http://localhost:9000/${BUCKET_NAME}/${objectName}`;
+    // O MinIO está configurado em localhost:9005 (host) para acesso público
+    const avatarUrl = `http://localhost:9005/${BUCKET_NAME}/${objectName}`;
 
     // Atualiza no banco de dados
     await pool.query('UPDATE usuarios SET avatar_url = ? WHERE id = ?', [avatarUrl, userId]);

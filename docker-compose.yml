@@ -105,34 +105,14 @@ services:
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=adminpassword
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9005:9000"
+      - "9006:9001"
     networks:
       - tom_hanks_net
     volumes:
       - minio_data:/data
     restart: unless-stopped
 
-  minio-mc:
-    image: alpine:latest
-    container_name: minio_mc_tom_hanks
-    depends_on:
-      - minio
-    networks:
-      - tom_hanks_net
-    entrypoint: >
-      /bin/sh -c "
-      apk add --no-cache curl;
-      curl -s -O https://dl.min.io/client/mc/release/linux-amd64/mc;
-      chmod +x mc;
-      echo 'Aguardando MinIO iniciar...';
-      sleep 5;
-      ./mc alias set myminio http://minio:9000 admin adminpassword;
-      ./mc mb myminio/user-profiles || true;
-      ./mc anonymous set download myminio/user-profiles;
-      echo 'Bucket configurado!';
-      exit 0;
-      "
 
 networks:
   tom_hanks_net:
