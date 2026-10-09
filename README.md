@@ -4,6 +4,8 @@ Aplicação web completa construída para navegar pelos filmes do Tom Hanks, int
 
 Desenvolvido para a disciplina de Arquiteturas Cloud , lecionada pelo professor **[@siriani](https://github.com/siriani)**.
 
+📄 **[Visualizar Relatório Bimestral P1](docs/P1_ISW055_Paulo_Henrique_Antunes.pdf)**
+
 ---
 
 ## 🚀 Funcionalidades Principais
@@ -280,3 +282,42 @@ Fotos de perfil, no contexto de uma "rede social" focada em catálogo, são info
 
 ### 🔒 Segurança de Edição
 A API do Catálogo garante matematicamente a segurança na alteração de perfil e bio: a rota `PUT /api/profile` sequer possui um campo `id` no payload. O identificador do usuário é estritamente retirado da assinatura do token JWT (`req.user.id`). Dessa forma, não é necessário fazer verificações extras no corpo da requisição, impossibilitando qualquer ataque de alteração forjada.
+
+---
+
+## 💳 Plano Premium com Stripe (Atividade 7)
+
+O modelo de negócio foi implementado! Usuários agora podem assinar um plano "Premium" para apoiar a plataforma e receber o selo 🌟 Premium no perfil, utilizando a infraestrutura global de pagamentos do Stripe.
+
+### 📸 Evidências da Atividade
+
+Conforme solicitado, seguem os prints do fluxo de pagamento concluído com sucesso:
+
+**1. Checkout do Stripe em modo de teste sendo concluído com sucesso:**
+![Checkout Stripe Concluído](doc/checkout-sucesso.png) *(Nota: tire este print e substitua a imagem)*
+
+**2. Usuário virando premium no banco depois do webhook, e do benefício premium funcionando:**
+![Benefício no Perfil (Selo)](doc/selo-premium.png)
+![Banco de Dados Atualizado](doc/banco-premium.png)
+
+### 🏗️ Como a Arquitetura foi Construída
+
+1. **Separação de Responsabilidades (Segurança Máxima):** 
+Nenhum dado de cartão de crédito chega ao nosso servidor ou banco de dados MariaDB. Toda a página de checkout é delegada e hospedada pelos servidores blindados do Stripe. Nós apenas iniciamos uma Sessão de Checkout e recebemos a URL segura para onde o usuário é redirecionado.
+
+2. **O Pulo do Gato (Metadata):** 
+Ao criar a sessão, embutimos nosso `userId` interno no campo `metadata` do Stripe. Dessa forma, quando o pagamento for finalizado lá fora, o Stripe nos "devolve" esse ID para sabermos quem devemos promover a Premium.
+
+3. **Comunicação Assíncrona (Webhooks):** 
+Em vez de esperar o usuário ser redirecionado para a tela de "Sucesso" (ele poderia simplesmente fechar a aba), a nossa aplicação implementou um *Webhook* (`/api/stripe/webhook`). O Stripe faz uma chamada HTTP (backend para backend) em modo assíncrono avisando que a transação `checkout.session.completed` ocorreu.
+*   **Armadilha superada:** O framework Express normalmente transforma todo `req.body` em JSON nativo (`app.use(express.json())`). Porém, o Stripe exige o *Raw Body* (Buffer) original da requisição HTTP para conseguir rodar o algoritmo de criptografia e validar se a requisição realmente partiu dos servidores deles. Resolvemos isso inserindo a rota do Webhook isoladamente *antes* do parser JSON.
+
+### 🚀 Dica de Infraestrutura: Testando Localmente
+O webhook local (porta `3001` no container) não está acessível na internet pública para o Stripe enviar o ping.
+Para resolver a dor de cabeça de logins conflitantes do CLI do Stripe (que causavam erros de permissão), criamos o prático utilitário `listen.sh` na pasta do backend. Ele abre o túnel exigindo explicitamente a chave correta:
+
+```bash
+cd backend
+./listen.sh
+```
+Isso imediatamente intercepta e encaminha os pagamentos de teste para a rota webhook do seu container!

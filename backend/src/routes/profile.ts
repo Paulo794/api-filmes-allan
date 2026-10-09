@@ -28,7 +28,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 
     // Busca o usuário
     const [userRows]: any = await pool.query(
-      'SELECT id, nome, email, bio, avatar_url FROM usuarios WHERE id = ?',
+      'SELECT id, nome, email, bio, avatar_url, is_premium FROM usuarios WHERE id = ?',
       [userId]
     );
 

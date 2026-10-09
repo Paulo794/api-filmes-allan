@@ -53,6 +53,16 @@ export default function Profile() {
     }
   };
 
+  const handleCheckout = async () => {
+    try {
+      const res = await api.post('/stripe/checkout');
+      window.location.href = res.data.url;
+    } catch (error) {
+      console.error('Erro ao gerar checkout', error);
+      alert('Erro ao iniciar pagamento. Tente novamente mais tarde.');
+    }
+  };
+
   if (!profile) return <div style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Carregando Perfil...</div>;
 
   return (
@@ -82,8 +92,26 @@ export default function Profile() {
 
         {/* Lado Direito: Informações */}
         <div style={{ flex: 1, minWidth: '300px' }}>
-          <h2 style={{ fontSize: '1.8rem', margin: '0 0 0.5rem 0' }}>{profile.nome}</h2>
-          <p style={{ color: '#94a3b8', margin: '0 0 2rem 0' }}>{profile.email}</p>
+          <h2 style={{ fontSize: '1.8rem', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {profile.nome}
+            {profile.is_premium && (
+              <span style={{ fontSize: '0.8rem', background: 'linear-gradient(90deg, #f59e0b, #fbbf24)', color: '#451a03', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                🌟 Premium
+              </span>
+            )}
+          </h2>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+            <p style={{ color: '#94a3b8', margin: 0 }}>{profile.email}</p>
+            {!profile.is_premium && (
+              <button 
+                onClick={handleCheckout}
+                style={{ padding: '8px 20px', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)', color: 'white', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 15px rgba(139, 92, 246, 0.4)' }}
+              >
+                ✨ Assinar Premium
+              </button>
+            )}
+          </div>
 
           <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

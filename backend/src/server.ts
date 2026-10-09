@@ -14,7 +14,16 @@ import authRoutes from './routes/auth';
 import moviesRoutes from './routes/movies';
 
 app.use(cors());
+
+// A Rota do Webhook do Stripe DEVE vir ANTES do express.json()
+import { handleStripeWebhook } from './controllers/stripeWebhook';
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
+// Body parser normal para as outras rotas
 app.use(express.json());
+
+import stripeRoutes from './routes/stripe';
+app.use('/api/stripe', stripeRoutes);
 
 import { auditDenials } from './middleware/auditDenials';
 app.use(auditDenials);

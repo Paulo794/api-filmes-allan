@@ -5,6 +5,8 @@ import Catalog from './pages/Catalog';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
+import Success from './pages/Success';
+import Cancel from './pages/Cancel';
 
 // Componente para proteger rotas
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -40,6 +42,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/success" 
+          element={
+            <ProtectedRoute>
+              <Success />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/cancel" 
+          element={
+            <ProtectedRoute>
+              <Cancel />
             </ProtectedRoute>
           } 
         />
