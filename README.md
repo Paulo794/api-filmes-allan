@@ -4,7 +4,8 @@ Aplicação web completa construída para navegar pelos filmes do Tom Hanks, int
 
 Desenvolvido para a disciplina de Arquiteturas Cloud , lecionada pelo professor **[@siriani](https://github.com/siriani)**.
 
-📄 **[Visualizar Relatório Bimestral P1](docs/P1_ISW055_Paulo_Henrique_Antunes.pdf)**
+📄 **[Visualizar Relatório Bimestral P1](docs/P1_ISW055_Paulo_Henrique_Antunes.pdf)**  
+📘 **[Acessar Documentação Reversa Completa do Sistema (DOCUMENTACAO.md)](DOCUMENTACAO.md)** *(Especificação, Arquitetura "Big Picture", Regras de Negócio e Modelo de Dados — Atividade 8)*
 
 ---
 
@@ -321,3 +322,27 @@ cd backend
 ./listen.sh
 ```
 Isso imediatamente intercepta e encaminha os pagamentos de teste para a rota webhook do seu container!
+
+---
+
+## ☁️ Classificação SaaS, PaaS e IaaS do Projeto (Atividade 8 — Encerramento)
+
+Ao final da disciplina, o projeto atravessa simultaneamente as **três camadas de responsabilidade em computação em nuvem** (**IaaS**, **PaaS** e **SaaS**). Abaixo está o mapeamento de cada peça utilizada pelo sistema e a justificativa de onde ela se encaixa:
+
+| Peça do Sistema | Camada | Justificativa (Uma Frase) |
+| --------------- | ------ | ------------------------- |
+| **VM Proxmox (Ubuntu + Docker)** *(Contexto da disciplina)* | **IaaS** (*Infrastructure as a Service*) | O provedor da infraestrutura (Fatec) entrega apenas máquina virtual, disco e rede, enquanto nós instalamos e administramos o sistema operacional Linux e o motor do Docker. |
+| **Containers da Aplicação (`catalogo`, `auth-service`, `log-service`)** | **PaaS** (*Platform as a Service — perspectiva do código*) | Sob a ótica do nosso código, o ambiente de containers já entrega o runtime Node.js e a rede interna (`tom_hanks_net`) prontos, exigindo apenas o deploy da imagem sem reinstalar o SO. |
+| **Containers de Dados e Storage (`redis`, `minio`)** | **PaaS** (*Serviços de plataforma em container*) | São motores de persistência (Redis Streams e Object Storage S3) executados via imagens prontas no Compose, consumidos pelo código via protocolo/SDK sem instalação manual no SO. |
+| **Banco Relacional MariaDB (`DB_HOST:3306`)** | **PaaS** (*Perspectiva da aplicação*) | É consumido remotamente pela aplicação como um motor de banco pronto via string de conexão (`mysql2`), onde gerenciamos apenas o schema SQL e os dados da aplicação. |
+| **Stripe (Checkout + Webhooks)** | **SaaS** (*Software as a Service*) | Produto pronto de terceiro consumido via API/SDK e webhooks, em que toda a infraestrutura e segurança PCI-DSS da página de pagamento são operadas pelo Stripe. |
+| **Mailtrap (E-mail Transacional SMTP)** | **SaaS** (*Software as a Service*) | Serviço externo pronto consumido via SMTP pelo `auth-service` para entrega de e-mails de redefinição de senha, sem hospedarmos servidor de e-mail próprio. |
+| **TMDB (API REST + CDN de Pôsteres)** | **SaaS** (*Software/Data as a Service*) | Produto externo pronto consumido via chamadas HTTP pelo backend e pelo navegador para obter a filmografia e imagens do Tom Hanks sem infraestrutura local. |
+
+> **Nota de Arquitetura:** Adotamos na camada **PaaS** a perspectiva didática proposta na disciplina (como o código enxerga a plataforma). No repositório não há contratação de um provedor PaaS/DBaaS comercial externo: o ambiente Docker Compose é orquestrado pela própria equipe sobre o host/VM, e o MariaDB é acessado externamente ao Compose via `DB_HOST`.
+
+### 📘 Documentação Reversa Completa
+
+Toda a engenharia reversa do sistema final — incluindo **Especificação Funcional**, **Diagrama de Arquitetura ("Big Picture")**, **22 Regras de Negócio ("Se X, então Y") extraídas do código** e **Modelo de Dados (ER + Redis + MinIO + Stripe)** — está registrada no documento dedicado:
+
+👉 **[Ler a Documentação Reversa Completa (`DOCUMENTACAO.md`)](DOCUMENTACAO.md)**
