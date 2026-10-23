@@ -19,7 +19,9 @@ Desenvolvido para a disciplina de Arquiteturas Cloud , lecionada pelo professor 
 
 ---
 
-## 🏗️ Arquitetura do Sistema (Atividade 3)
+## 🏗️ Arquitetura Inicial de Microsserviços (Histórico — Atividade 3)
+
+> 📌 **Nota Histórica:** As seções abaixo (Atividades 3 a 7) preservam o registro cronológico e as evidências visuais de cada entrega ao longo do semestre. Para consultar a **arquitetura final consolidada ("Big Picture")**, o **schema completo atualizado** e as **regras de negócio vigentes**, acesse o **[`DOCUMENTACAO.md`](DOCUMENTACAO.md)** ou a **[Seção da Atividade 8 no final deste README](#-classificação-saas-paas-e-iaas-do-projeto-atividade-8--encerramento)**.
 
 O projeto evoluiu para uma arquitetura de Microsserviços. O Catálogo agora atua como porta de entrada pública, enquanto o **Serviço de Autenticação** opera apenas na rede interna do Docker, garantindo máxima segurança.
 
@@ -157,7 +159,7 @@ A forma mais fácil de rodar o projeto agora é subindo a infraestrutura complet
 ```bash
 docker compose up -d --build
 ```
-Após o build, abra `http://localhost:3001` no seu navegador.
+Após o build, abra `http://localhost:8224` no seu navegador (porta `8224` do host mapeada para a porta `3001` do container `catalogo`).
 
 ---
 
@@ -229,11 +231,11 @@ Abaixo está a demonstração da interface do Swagger UI rodando localmente, mos
 ![Demonstração do Swagger UI rodando](doc/swagger.png)
 
 ### 🚀 Como Acessar a Documentação
-Com os containers rodando via Docker Compose, você pode acessar a interface interativa da documentação chamando a rota `/apidocs`. 
+Com os containers rodando via Docker Compose, você pode acessar a interface interativa da documentação chamando a rota `/api-docs`. 
 
 Considerando a porta mapeada na rede do Catálogo, basta abrir no navegador:
 ```bash
-http://localhost:8224/apidocs
+http://localhost:8224/api-docs
 ```
 
 ---
@@ -264,7 +266,7 @@ Para não inflar o MariaDB com arquivos binários (BLOB), adicionamos um *Object
       - MINIO_ROOT_USER=admin
       - MINIO_ROOT_PASSWORD=adminpassword
     ports:
-      - "9000:9000"
+      - "9000:9000" # Nota histórica: no docker-compose.yml final foi ajustado para "9005:9000" e "9006:9001"
       - "9001:9001"
     networks:
       - tom_hanks_net
@@ -282,7 +284,7 @@ Fotos de perfil, no contexto de uma "rede social" focada em catálogo, são info
 * **Com o Bucket Público:** Ganhamos máxima velocidade e otimização de cache do navegador. O *trade-off* é a impossibilidade de revogar o acesso àquele arquivo de quem já possui sua URL direta, o que é perfeitamente aceitável para fotos públicas de perfil.
 
 ### 🔒 Segurança de Edição
-A API do Catálogo garante matematicamente a segurança na alteração de perfil e bio: a rota `PUT /api/profile` sequer possui um campo `id` no payload. O identificador do usuário é estritamente retirado da assinatura do token JWT (`req.user.id`). Dessa forma, não é necessário fazer verificações extras no corpo da requisição, impossibilitando qualquer ataque de alteração forjada.
+Na rota `PUT /api/profile` (`backend/src/routes/profile.ts`), o identificador do usuário autenticado é obtido do token JWT (`req.user.id`). Caso a requisição envie um campo `id` no corpo JSON divergente do `userId` do token (`String(id) !== String(userId)`), a API rejeita a operação com `HTTP 403 Forbidden`; caso contrário, executa o `UPDATE` da biografia utilizando o `userId` extraído do JWT.
 
 ---
 
@@ -339,7 +341,7 @@ Ao final da disciplina, o projeto atravessa simultaneamente as **três camadas d
 | **Mailtrap (E-mail Transacional SMTP)** | **SaaS** (*Software as a Service*) | Serviço externo pronto consumido via SMTP pelo `auth-service` para entrega de e-mails de redefinição de senha, sem hospedarmos servidor de e-mail próprio. |
 | **TMDB (API REST + CDN de Pôsteres)** | **SaaS** (*Software/Data as a Service*) | Produto externo pronto consumido via chamadas HTTP pelo backend e pelo navegador para obter a filmografia e imagens do Tom Hanks sem infraestrutura local. |
 
-> **Nota de Arquitetura:** Adotamos na camada **PaaS** a perspectiva didática proposta na disciplina (como o código enxerga a plataforma). No repositório não há contratação de um provedor PaaS/DBaaS comercial externo: o ambiente Docker Compose é orquestrado pela própria equipe sobre o host/VM, e o MariaDB é acessado externamente ao Compose via `DB_HOST`.
+> **Nota de Arquitetura:** Adotamos na camada **PaaS** a perspectiva didática proposta na disciplina (como o código enxerga a plataforma). Não há configuração ou evidência de provedor PaaS/DBaaS comercial externo no repositório: o ambiente Docker Compose é orquestrado pela própria equipe sobre o host/VM, e o MariaDB é acessado externamente ao Compose via `DB_HOST`.
 
 ### 📘 Documentação Reversa Completa
 

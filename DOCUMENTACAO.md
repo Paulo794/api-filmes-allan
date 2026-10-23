@@ -2,6 +2,7 @@
 
 > **Documento de Engenharia Reversa (Atividade 8 — ISW055)**  
 > **Professor:** Allan Siriani ([@siriani](https://github.com/siriani))  
+> **Data da Inspeção do Código:** 23/10/2026  
 > **Escopo:** Levantamento completo da especificação funcional, arquitetura distribuída ("Big Picture"), regras de negócio implementadas no código (*"Se X, então Y"*) e modelo de dados poliglota do sistema herdado.  
 > 🔗 Voltar para o [**README Principal (Classificação SaaS/PaaS/IaaS e Histórico)**](README.md)
 
@@ -43,15 +44,15 @@ Do ponto de vista de quem utiliza e administra a plataforma, o **Catálogo Tom H
 | **Comentários e Moderação** | Permite adicionar comentários em filmes, listar os próprios comentários no modal do filme e apagar comentários (próprios ou, no caso de `admin`, de qualquer usuário). | Modal React em `/catalog` (criação e leitura) + API (`DELETE /api/movies/comments/:commentId`) | Criação/Leitura: autenticado; Exclusão de terceiros: exclusivo `admin` |
 | **Perfil e Avatar** | Exibe nome, e-mail, selo Premium, biografia editável, foto de perfil (armazenada em bucket público do MinIO) e grade de filmes favoritos. | Tela React (`/profile`) + API (`/api/profile`, `/api/profile/avatar`) | Usuário autenticado (edita apenas o próprio perfil) |
 | **Plano Premium (Stripe)** | Redireciona o usuário não-premium para o Checkout hospedado pelo Stripe; após confirmação via Webhook, promove a conta para `is_premium = true` e exibe o selo `🌟 Premium` no perfil. | Botão em `/profile` + Telas `/success` e `/cancel` + API (`/api/stripe/*`) | Usuário autenticado |
-| **Logs de Auditoria** | Registra eventos de negócio e tentativas de acesso negado (`401`/`403`) no Redis Streams e permite consultar os últimos $N$ eventos registrados. | **Apenas API / Swagger** (`GET /api/admin/logs`) — *não possui tela no React* | Exclusivo `admin` |
+| **Logs de Auditoria** | Dispara o envio assíncrono (*best-effort*) de eventos de negócio e tentativas de acesso negado (`401`/`403`) ao `log-service` (Redis Streams) e permite consultar os últimos $N$ eventos persistidos. | **Apenas API / Swagger** (`GET /api/admin/logs`) — *não possui tela no React* | Exclusivo `admin` |
 
 ### 1.2. Detalhamento dos Fluxos sob a Ótica do Usuário
 
 1. **Cadastro, Login e Logout (`/`, `/forgot-password`, `/reset-password`):**
    - Na tela inicial (`frontend/src/pages/Login.tsx`), o visitante alterna entre entrar com e-mail/senha ou criar uma nova conta. Todo novo cadastro recebe automaticamente o papel `usuario`.
    - Ao fazer login, o frontend armazena o `token` JWT e os dados básicos do usuário no `localStorage` e redireciona para `/catalog`.
-   - Caso esqueça a senha, o usuário informa seu e-mail em `/forgot-password`. Se o e-mail estiver cadastrado, o `auth-service` dispara uma mensagem SMTP para o Mailtrap contendo um link para `/reset-password?token=...`.
-   - Ao clicar em **Sair** no cabeçalho do catálogo (`Catalog.tsx:69-78`), o frontend notifica `POST /api/auth/logout` (para registro na trilha de auditoria), limpa o `localStorage` e retorna à tela de login.
+   - Caso esqueça a senha, o usuário informa seu e-mail em `/forgot-password`. Se o e-mail estiver cadastrado, o `auth-service` dispara uma mensagem SMTP para o Mailtrap contendo um link para `http://localhost:8224/reset-password?token=...`.
+   - Ao clicar em **Sair** no cabeçalho do catálogo (`Catalog.tsx:69-78`), o frontend chama `POST /api/auth/logout` (que apenas dispara o envio de um evento de auditoria), limpa o `localStorage` do navegador e retorna à tela de login. Como o JWT é *stateless* e não há *blocklist* no servidor, nem o logout nem a redefinição de senha invalidam tokens JWT já emitidos antes de sua expiração de 24 horas.
 
 2. **Navegação no Catálogo e Favoritos (`/catalog`):**
    - Ao abrir o catálogo, a aplicação carrega em paralelo a filmografia do Tom Hanks (`GET /api/movies/tom-hanks`) e a lista de favoritos do usuário logado (`GET /api/movies/favorites`).
@@ -65,7 +66,7 @@ Do ponto de vista de quem utiliza e administra a plataforma, o **Catálogo Tom H
 
 4. **Perfil do Usuário e Upload de Avatar (`/profile`):**
    - A página **Meu Perfil** (`frontend/src/pages/Profile.tsx`) exibe o avatar atual (ou a inicial do nome quando não há foto), nome, e-mail, biografia e a grade de filmes favoritados.
-   - O usuário pode editar e salvar sua biografia (`PUT /api/profile`) e enviar uma nova foto de perfil (`POST /api/profile/avatar`) de até **5 MB** (`image/*`). A imagem é gravada no **MinIO** e carregada pelo navegador via URL direta (`http://localhost:9005/user-profiles/...`).
+   - O usuário pode editar e salvar sua biografia (`PUT /api/profile`) e enviar uma nova foto de perfil (`POST /api/profile/avatar`) de até **5 MB** (`image/*`). A imagem é gravada no **MinIO** e sua URL é salva no banco com o host fixo `http://localhost:9005/user-profiles/...` (o que significa que o navegador tenta buscar a imagem na própria máquina onde está aberto, funcionando em acesso local, mas falhando caso outro computador na rede acesse a aplicação).
 
 5. **Assinatura do Plano Premium (`/profile`, `/success`, `/cancel`):**
    - Usuários que ainda possuem `is_premium = false` veem o botão **✨ Assinar Premium** no perfil.
@@ -73,7 +74,7 @@ Do ponto de vista de quem utiliza e administra a plataforma, o **Catálogo Tom H
    - Após o pagamento no ambiente do Stripe, o usuário é redirecionado para `/success` (ou `/cancel` se desistir), enquanto o Stripe notifica assincronamente o backend em `POST /api/stripe/webhook`. Confirmado o evento `checkout.session.completed`, o banco atualiza `is_premium = true` e o perfil passa a exibir o selo dourado **🌟 Premium** ao lado do nome.
 
 6. **Auditoria para Administradores (`GET /api/admin/logs`):**
-   - Ações de autenticação, criação/remoção de favoritos, criação/exclusão de comentários, consultas de logs e tentativas de acesso negado (`401`/`403` nas rotas cobertas pelo interceptor) são enviadas para o `log-service` e persistidas no Redis Streams (`audit:events`).
+   - Ações de autenticação, criação/remoção de favoritos, criação/exclusão de comentários, consultas de logs e tentativas de acesso negado (`401`/`403` nas rotas cobertas pelo interceptor) disparam um envio assíncrono (*fire-and-forget*) para o `log-service`, que quando disponível persiste os eventos no Redis Streams (`audit:events`).
    - Administradores (`role = 'admin'`) consultam os últimos $N$ eventos (padrão `50`, máximo `500`) pelo endpoint `GET /api/admin/logs` (via Swagger UI em `http://localhost:8224/api-docs` ou cliente HTTP). Não há tela administrativa de logs no React.
    - Além disso, o `auth-service` possui internamente a rota `GET /auth/verify` (`authRoutes.ts:13`), sem proxy correspondente no `catalogo` e sem uso pelo frontend atual.
 
@@ -88,29 +89,29 @@ O sistema final adota uma arquitetura de microsserviços orquestrada via **Docke
 ```mermaid
 flowchart TB
     subgraph Client["Camada Cliente"]
-        Browser["🌐 Navegador Web<br/>(React 19 SPA)"]
+        Browser["🌐 Navegador Web (React 19 SPA)"]
     end
 
     subgraph SaaS["Camada SaaS — Serviços Externos de Terceiros"]
-        TMDB_API["🎬 TMDB REST API<br/>(api.themoviedb.org)"]
-        TMDB_CDN["🖼️ TMDB Image CDN<br/>(image.tmdb.org)"]
-        Mailtrap["✉️ Mailtrap SMTP<br/>(:2525)"]
-        Stripe["💳 Stripe Cloud<br/>(Checkout & Eventos)"]
+        TMDB_API["🎬 TMDB REST API (api.themoviedb.org)"]
+        TMDB_CDN["🖼️ TMDB Image CDN (image.tmdb.org)"]
+        Mailtrap["✉️ Mailtrap SMTP (:2525)"]
+        Stripe["💳 Stripe Cloud (Checkout e Eventos)"]
     end
 
     subgraph Host["Host / VM Proxmox (Contexto IaaS — Ubuntu + Docker)"]
-        StripeCLI["🔧 Stripe CLI (backend/listen.sh)<br/>Túnel local de Webhook (ambiente dev/teste)"]
+        StripeCLI["🔧 Stripe CLI (backend/listen.sh — Túnel local de Webhook)"]
         subgraph Compose["Fronteira Docker Compose — Rede bridge: tom_hanks_net (Camada Efetivamente PaaS)"]
-            Catalogo["🚪 catalogo :3001<br/>Porta Host: 8224 (HTTP)<br/>Express + Static React + /api-docs"]
-            Auth["🔐 auth-service :3000<br/>(Apenas rede interna)"]
-            Log["📋 log-service :3002<br/>(Apenas rede interna)"]
-            Redis[("⚡ redis :6379<br/>Volume: redis_data<br/>Stream: audit:events")]
-            MinIO[("🪣 minio :9000 / :9001<br/>Portas Host: 9005 (API) / 9006 (Console)<br/>Volume: minio_data | Bucket: user-profiles")]
+            Catalogo["🚪 catalogo :3001 (Porta Host: 8224 HTTP — Express + React + /api-docs)"]
+            Auth["🔐 auth-service :3000 (Apenas rede interna)"]
+            Log["📋 log-service :3002 (Apenas rede interna)"]
+            Redis[("⚡ redis :6379 (Volume: redis_data — Stream: audit:events)")]
+            MinIO[("🪣 minio :9000/:9001 (Host: 9005 API / 9006 Console — Bucket: user-profiles)")]
         end
     end
 
     subgraph ExternalDB["Banco Relacional (Fora do Docker Compose — configurado via DB_HOST)"]
-        MariaDB[("🗄️ MariaDB :3306<br/>(Localização física definida por .env)")]
+        MariaDB[("🗄️ MariaDB :3306 (Localização física definida por .env)")]
     end
 
     Browser -->|"HTTP :8224 (SPA + /api/*)"| Catalogo
@@ -118,7 +119,7 @@ flowchart TB
     Browser -->|"HTTPS GET /t/p/w500/*"| TMDB_CDN
     Browser <-->|"HTTPS Redirect (Checkout)"| Stripe
 
-    Catalogo -->|"HTTPS GET /3/search & movie_credits"| TMDB_API
+    Catalogo -->|"HTTPS GET /3/search e movie_credits"| TMDB_API
     Catalogo -->|"HTTP Proxy /api/auth/*"| Auth
     Catalogo -->|"HTTP S3 putObject :9000"| MinIO
     Catalogo -->|"HTTPS SDK checkout.sessions.create"| Stripe
@@ -159,22 +160,26 @@ As regras abaixo foram extraídas diretamente da leitura dos arquivos `.ts` e `.
 1. **Bloqueio de E-mail Duplicado (`auth-service/src/controllers/authController.ts:19-23`):**  
    **Se** alguém tentar cadastrar (`POST /api/auth/register`) um `email` que já existe na tabela `usuarios`, **então** o sistema interrompe o cadastro e retorna `HTTP 400` com `{"error": "Email já cadastrado"}`.
 
-2. **Hash de Senha e Papel Inicial Fixo (`auth-service/src/controllers/authController.ts:25-29`):**  
-   **Se** os dados de registro forem aceitos, **então** a senha é transformada em hash pelo `bcrypt` com `saltRounds = 10`, o usuário é salvo no banco com o papel padrão `'usuario'` e um evento `auth.registro` é emitido para a auditoria.
+2. **Hash de Senha e Papel Inicial Fixo (`auth-service/src/controllers/authController.ts:25-37`):**  
+   **Se** os dados de registro forem aceitos, **então** a senha é transformada em hash pelo `bcrypt` com `saltRounds = 10`, o usuário é salvo no banco com o papel padrão `'usuario'` e é disparado o envio de um evento `auth.registro` para a auditoria.
 
 3. **Emissão de JWT com Claims de Papel e Expiração de 24h (`auth-service/src/controllers/authController.ts:50-77`):**  
-   **Se** o e-mail existir e a senha informada no login (`POST /api/auth/login`) corresponder ao `senha_hash` via `bcrypt.compare`, **então** o `auth-service` assina um token JWT contendo `{ id, email, role: user.role || 'usuario' }` com validade de **24 horas** (`expiresIn: '24h'`); caso contrário, retorna `HTTP 401` (`"Credenciais inválidas"`).
+   **Se** o e-mail existir e a senha informada no login (`POST /api/auth/login`) corresponder ao `senha_hash` via `bcrypt.compare`, **então** o `auth-service` assina um token JWT contendo `{ id, email, role: user.role || 'usuario' }` com validade de **24 horas** (`expiresIn: '24h'`); caso contrário, retorna `HTTP 401` (`"Credenciais inválidas"`).  
+   - *Limitação real no código:* Como o JWT é *stateless* e validado apenas por assinatura e data de expiração (`jwt.verify`), realizar logout (`POST /api/auth/logout`), trocar a senha ou alterar o `role` no banco não revoga tokens JWT já emitidos até que expirem em 24 horas.
 
 4. **Resposta Uniforme no Pedido de Recuperação de Senha (`auth-service/src/controllers/authController.ts:89-115`):**  
    **Se** um usuário solicitar recuperação de senha (`POST /api/auth/forgot-password`) informando um e-mail não cadastrado, **então** a API retorna `HTTP 200` (`"Se o email existir, um link foi enviado."`) sem gerar token; **se** o e-mail existir e o banco + envio SMTP pelo Mailtrap funcionarem sem exceção, **então** retorna exatamente a mesma mensagem `HTTP 200`.  
    - *Limitação real no código:* Se o e-mail existir no banco, mas ocorrer uma falha na inserção em `reset_tokens` ou no envio SMTP (`sendResetEmail`), a execução cai no `catch` (`authController.ts:111-114`) e retorna `HTTP 500` (`"Erro ao processar esqueci a senha"`).
 
 5. **Geração e Expiração de 30 Minutos para o Link de Reset (`auth-service/src/controllers/authController.ts:100-108`):**  
-   **Se** o e-mail existir no pedido de recuperação, **então** o sistema gera um token criptográfico de `32 bytes` em hexadecimal (`64` caracteres), grava na tabela `reset_tokens` com expiração `DATE_ADD(NOW(), INTERVAL 30 MINUTE)` e envia para o Mailtrap o link `http://localhost:8224/reset-password?token=<token>`.
+   **Se** o e-mail existir no pedido de recuperação, **então** o sistema gera um token criptográfico de `32 bytes` em hexadecimal (`64` caracteres), grava na tabela `reset_tokens` com expiração `DATE_ADD(NOW(), INTERVAL 30 MINUTE)` e envia para o Mailtrap o link fixo `http://localhost:8224/reset-password?token=<token>`.  
+   - *Limitação real no código:* Como a URL gerada usa `localhost:8224` fixo no código, o link recebido no e-mail aponta para a própria máquina de quem clica nele — funcionando quando navegador e containers estão na mesma máquina, mas falhando se o usuário abrir o link a partir de outro computador.
 
 6. **Validação e Uso do Token de Redefinição (`auth-service/src/controllers/authController.ts:117-149`):**  
-   **Se** o token enviado em `POST /api/auth/reset-password` não existir na tabela `reset_tokens`, já estiver marcado com `usado = TRUE` ou estiver expirado (`expira_em <= NOW()`), **então** a troca de senha é recusada com `HTTP 400` (`"Token inválido ou expirado"`); **se** for válido, **então** o sistema atualiza `usuarios.senha_hash` (com novo hash `bcrypt` custo `10`), executa `UPDATE reset_tokens SET usado = TRUE WHERE token = ?` e emite o evento `auth.senha_redefinida`.  
-   - *Limitação real no código:* O `SELECT` de verificação, o `UPDATE` da senha em `usuarios` e o `UPDATE` de invalidação em `reset_tokens` são executados em três instruções SQL independentes (sem transação `BEGIN/COMMIT`), portanto o uso único não é atômico diante de requisições concorrentes simultâneas.
+   **Se** o token enviado em `POST /api/auth/reset-password` não existir na tabela `reset_tokens`, já estiver marcado com `usado = TRUE` ou estiver expirado (`expira_em <= NOW()`), **então** a troca de senha é recusada com `HTTP 400` (`"Token inválido ou expirado"`); **se** for válido, **então** o sistema atualiza `usuarios.senha_hash` (com novo hash `bcrypt` custo `10`), executa `UPDATE reset_tokens SET usado = TRUE WHERE token = ?` e dispara o envio do evento `auth.senha_redefinida`.  
+   - *Limitações reais no código:*
+     1. O `SELECT` de verificação, o `UPDATE` da senha em `usuarios` e o `UPDATE` de invalidação em `reset_tokens` são executados em três instruções SQL independentes (sem transação `BEGIN/COMMIT`), portanto o uso único não é atômico diante de requisições concorrentes simultâneas.
+     2. A troca de senha não invalida sessões/JWTs emitidos anteriormente.
 
 7. **Verificação Local de Assinatura JWT no Gateway (`backend/src/middleware/authMiddleware.ts:16-33`):**  
    **Se** uma requisição a uma rota protegida do Catálogo não enviar o cabeçalho `Authorization: Bearer <token>`, **então** o middleware retorna `HTTP 401` (`"Acesso negado, token não fornecido"`); **se** o token tiver assinatura inválida ou estiver expirado, **então** retorna `HTTP 401` (`"Token inválido ou expirado"`).
@@ -194,7 +199,7 @@ As regras abaixo foram extraídas diretamente da leitura dos arquivos `.ts` e `.
     **Se** um usuário autenticado consultar seus favoritos (`GET /api/movies/favorites`) ou os comentários de um filme (`GET /api/movies/comments/:movieId`), **então** o banco filtra os resultados estritamente por `WHERE usuario_id = ?` usando o `req.user.id` do token JWT (cada usuário visualiza apenas seus próprios favoritos e seus próprios comentários).
 
 12. **Regra RBAC de Exclusão de Comentário — Dono ou Admin (`backend/src/routes/movies.ts:152-197`):**  
-    **Se** um usuário tentar apagar um comentário (`DELETE /api/movies/comments/:commentId`) e o registro não existir, **então** recebe `HTTP 404`; **se** o usuário autenticado **não** for o autor do comentário (`comment.usuario_id !== usuario_id`) **e** seu papel no token JWT **não** for `'admin'` (`role !== 'admin'`), **então** o servidor bloqueia a ação com `HTTP 403` (`"Acesso negado: apenas o dono ou um admin podem apagar este comentário."`). **Se** for o dono ou um `'admin'`, o comentário é apagado e o evento `comentario.apagado` registra no campo `detalhe` se houve moderação (`moderacao: !ehDono` e `dono_original`).
+    **Se** um usuário tentar apagar um comentário (`DELETE /api/movies/comments/:commentId`) e o registro não existir, **então** recebe `HTTP 404`; **se** o usuário autenticado **não** for o autor do comentário (`comment.usuario_id !== usuario_id`) **e** seu papel no token JWT **não** for `'admin'` (`role !== 'admin'`), **então** o servidor bloqueia a ação com `HTTP 403` (`"Acesso negado: apenas o dono ou um admin podem apagar este comentário."`). **Se** for o dono ou um `'admin'`, o comentário é apagado e dispara-se o envio do evento `comentario.apagado` informando no campo `detalhe` se houve moderação (`moderacao: !ehDono` e `dono_original`).
 
 ### 3.3. Perfil de Usuário e Upload de Avatar (MinIO)
 
@@ -209,12 +214,15 @@ As regras abaixo foram extraídas diretamente da leitura dos arquivos `.ts` e `.
     - *Limitações reais no código:*
       1. Se o bucket `user-profiles` já existir quando o backend iniciar (`minio.ts:36-38`), `setupMinio()` não verifica nem reaplica a política pública.
       2. Quando o usuário troca de foto, apenas a URL em `usuarios.avatar_url` é atualizada; os arquivos de fotos anteriores não são deletados do bucket do MinIO.
+      3. Como a URL gravada em `usuarios.avatar_url` contém `http://localhost:9005/...` fixo (`profile.ts:105`), o navegador do cliente tenta carregar a imagem na sua própria máquina (`localhost`), o que impede a exibição do avatar quando a aplicação é acessada a partir de outro computador.
 
 ### 3.4. Plano Premium e Integração Stripe
 
 16. **Geração de Sessão de Checkout com Metadata (`backend/src/controllers/stripeController.ts:5-36`, `frontend/src/pages/Profile.tsx:106-113`):**  
     **Se** o usuário possuir `is_premium = false`, **então** o frontend exibe o botão `"✨ Assinar Premium"`; ao acioná-lo (`POST /api/stripe/checkout`), o backend cria uma sessão no Stripe em modo `'subscription'` para o `STRIPE_PRICE_ID` injetando `metadata: { userId: userId.toString() }` e retorna a URL de pagamento.  
-    - *Limitação real no código:* O bloqueio para quem já é premium é apenas visual no React (`!profile.is_premium`); o endpoint `POST /api/stripe/checkout` não consulta o banco para impedir que um usuário já premium crie outra sessão de checkout via chamada direta à API.
+    - *Limitações reais no código:*
+      1. O bloqueio para quem já é premium é apenas visual no React (`!profile.is_premium`); o endpoint `POST /api/stripe/checkout` não consulta o banco para impedir que um usuário já premium crie outra sessão de checkout via chamada direta à API.
+      2. Caso a variável `APP_URL` não esteja definida no ambiente (`stripeController.ts:14`), o fallback das URLs de retorno (`success_url` e `cancel_url`) usa `http://localhost:3001` em vez da porta `8224` publicada pelo Compose, além de apontar para o `localhost` da máquina do usuário.
 
 17. **Exigência de Assinatura Criptográfica sobre Raw Body no Webhook (`backend/src/server.ts:20`, `backend/src/controllers/stripeWebhook.ts:7-24`):**  
     **Se** uma requisição chegar em `POST /api/stripe/webhook` (registrada antes do `express.json()` usando `express.raw({ type: 'application/json' })`) sem o cabeçalho `stripe-signature`, sem `STRIPE_WEBHOOK_SECRET` configurado ou se a validação `stripe.webhooks.constructEvent` falhar, **então** o servidor rejeita o payload com `HTTP 400` (`"Webhook Error: ..."`).
@@ -240,7 +248,7 @@ As regras abaixo foram extraídas diretamente da leitura dos arquivos `.ts` e `.
     **Se** uma chamada às rotas `POST /events` ou `GET /events` do `log-service` não enviar o cabeçalho `X-Internal-Token` com valor idêntico a `INTERNAL_SERVICE_TOKEN`, **então** o middleware `internalAuth` recusa com `HTTP 401` (`"Acesso negado: token interno inválido ou ausente."`). A rota `GET /health` é registrada antes de `/events` e responde sem exigir token.
 
 22. **Consulta dos Últimos $N$ Logs Restrita a Admin (`backend/src/routes/adminLogs.ts:10-42`, `backend/src/middleware/requireRole.ts:4-15`, `log-service/src/repositories/auditStreamRepository.ts:31-59`):**  
-    **Se** um usuário autenticado cujo `role` no JWT não seja `'admin'` chamar `GET /api/admin/logs`, **então** `requireRole('admin')` retorna `HTTP 403` (`"Acesso negado: requer papel admin."`) e essa tentativa negada é gravada na auditoria; **se** for `'admin'`, **então** o parâmetro `limit` é ajustado para o intervalo `[1, 500]` (padrão `50`), o `log-service` lê os últimos $N$ registros do stream `audit:events` via `XREVRANGE` (cujo tamanho máximo aproximado é controlado no `XADD` por `MAXLEN ~ <AUDIT_STREAM_MAXLEN>`), inverte a lista para ordem cronológica e registra o evento `log.consultado`.
+    **Se** um usuário autenticado cujo `role` no JWT não seja `'admin'` chamar `GET /api/admin/logs`, **então** `requireRole('admin')` retorna `HTTP 403` (`"Acesso negado: requer papel admin."`) e essa resposta `403` dispara uma tentativa de envio de evento `acesso.negado` à auditoria via `auditDenials`; **se** for `'admin'`, **então** o parâmetro `limit` é ajustado para o intervalo `[1, 500]` (padrão `50`), o `log-service` lê os últimos $N$ registros do stream `audit:events` via `XREVRANGE` (cujo tamanho máximo aproximado é controlado no `XADD` por `MAXLEN ~ <AUDIT_STREAM_MAXLEN>`), inverte a lista para ordem cronológica e dispara o envio do evento `log.consultado`.
 
 ---
 
