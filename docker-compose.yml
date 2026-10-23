@@ -24,6 +24,10 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - APP_URL=${APP_URL}
     depends_on:
       auth-service:
         condition: service_healthy
