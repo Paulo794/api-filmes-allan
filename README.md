@@ -1,3 +1,5 @@
+> **Este projeto continua em [github.com/Paulo794/acervo-tricolor](https://github.com/Paulo794/acervo-tricolor)**
+
 # 🎬 Catálogo de Filmes — Tom Hanks
 
 Aplicação web completa construída para navegar pelos filmes do Tom Hanks, integrada ao **TMDB API** em tempo real. Cada usuário possui seu próprio espaço isolado no banco de dados para salvar seus filmes favoritos e registrar comentários, sem acesso aos dados de outros usuários.
